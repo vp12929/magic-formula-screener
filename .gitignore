@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Testing & caches
+.pytest_cache/
+*.cache/
+.coverage
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Data & caches
+*.csv
+yfinance_cache/
+.vscode/
+.idea/
