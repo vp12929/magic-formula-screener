@@ -87,7 +87,7 @@ class PerformanceAnalyzer:
                 PortfolioSnapshot("End", portfolio.cash, portfolio.holdings_value, portfolio.total_equity, portfolio.cumulative_return_pct),
             ]
 
-        initial = snapshots[0].total_equity if snapshots else portfolio.initial_capital
+        initial = portfolio.initial_capital
         ending = snapshots[-1].total_equity if snapshots else portfolio.total_equity
         total_return = (ending - initial) / initial if initial > 0 else 0.0
 
