@@ -127,10 +127,22 @@ def main():
 
     args = parser.parse_args()
 
+    # CLI Validation: Ensure candidate pool is large enough for desired top results
+    if args.limit < args.top:
+        parser.error(
+            f"--limit ({args.limit}) must be greater than or equal to --top ({args.top}). "
+            f"You cannot select the top {args.top} stocks from a candidate pool of only {args.limit}."
+        )
+
     mode_title = "HISTORICAL BACKTESTER" if args.backtest else "STOCK SCREENER"
     print("=" * 80)
     print(f" MAGIC FORMULA {mode_title} (Joel Greenblatt)")
     print(f" Provider: {args.provider.upper()} | Universe: {args.universe.upper()} | Top Results: {args.top}")
+    if args.limit < int(args.top * 1.3):
+        print(
+            f" Advisory: Sector filters exclude ~20-30% of stocks. With --limit {args.limit}, you might "
+            f"receive fewer than {args.top} qualifying stocks. (Recommended: --limit >= {int(args.top * 1.3)})"
+        )
     print("=" * 80)
 
     # 1. Instantiate Data Provider (Polymorphism)
