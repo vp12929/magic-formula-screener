@@ -78,9 +78,27 @@ def main():
     )
     parser.add_argument(
         "--min-mcap",
-        type=float,
-        default=50_000_000.0,
-        help="Minimum market cap filter in USD (e.g. 50000000 = $50M). Default: 50,000,000",
+        type=str,
+        default="50M",
+        help="Minimum market cap filter (e.g. 50M, 300M, 2B). Default: 50M",
+    )
+    parser.add_argument(
+        "--max-mcap",
+        type=str,
+        default=None,
+        help="Maximum market cap filter (e.g. 2B, 10B). Useful to target small/mid-caps. Default: None",
+    )
+    parser.add_argument(
+        "--cap-tier",
+        choices=["all", "micro", "small", "mid", "large"],
+        default=None,
+        help="Market cap tier preset: micro ($50M-$300M), small ($300M-$2B), mid ($2B-$10B), large ($10B+). Overrides min/max-mcap.",
+    )
+    parser.add_argument(
+        "--min-capital-employed",
+        type=str,
+        default="10M",
+        help="Minimum Tangible Capital Employed (Net Working Capital + Net Fixed Assets) in USD (e.g. 10M, 25M). Default: 10M",
     )
     parser.add_argument(
         "--export-csv",
@@ -157,7 +175,12 @@ def main():
             tickers = UniverseLoader.get_curated_tickers(limit=args.limit)
 
     # 2. Instantiate Filters & Screener
-    filter_chain = FilterChain.default_magic_formula_chain(min_market_cap=args.min_mcap)
+    filter_chain = FilterChain.default_magic_formula_chain(
+        min_market_cap=args.min_mcap,
+        max_market_cap=args.max_mcap,
+        min_capital_employed=args.min_capital_employed,
+        cap_tier=args.cap_tier,
+    )
     strategy = StrictMagicFormulaStrategy() if args.strategy == "strict" else ProxyRankingStrategy()
 
     screener = MagicFormulaScreener(

@@ -8,12 +8,13 @@ OOP Concept: Composite Pattern & Filter Pipeline
 - Applies all filters in sequence, returning False as soon as any filter rejects the company.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union
 from magic_formula.models.company import Company
 from magic_formula.filters.base import BaseFilter
 from magic_formula.filters.sector import SectorFilter
 from magic_formula.filters.market_cap import MarketCapFilter
 from magic_formula.filters.profitability import PositiveEarningsFilter
+from magic_formula.filters.capital_employed import MinCapitalEmployedFilter
 
 
 class FilterChain(BaseFilter):
@@ -23,13 +24,29 @@ class FilterChain(BaseFilter):
         self.filters = filters if filters is not None else []
 
     @classmethod
-    def default_magic_formula_chain(cls, min_market_cap: float = 50_000_000.0) -> "FilterChain":
-        """Factory Method: Returns the standard Greenblatt filter pipeline."""
-        return cls([
+    def default_magic_formula_chain(
+        cls,
+        min_market_cap: Union[float, str] = 50_000_000.0,
+        max_market_cap: Optional[Union[float, str]] = None,
+        min_capital_employed: Union[float, str] = 10_000_000.0,
+        cap_tier: Optional[str] = None,
+    ) -> "FilterChain":
+        """
+        Factory Method: Returns the standard Greenblatt filter pipeline
+        with configurable market cap boundaries/tier and minimum operating capital.
+        """
+        if cap_tier:
+            mcap_filter = MarketCapFilter.from_tier(cap_tier)
+        else:
+            mcap_filter = MarketCapFilter(min_market_cap=min_market_cap, max_market_cap=max_market_cap)
+
+        filters = [
             SectorFilter(),
-            MarketCapFilter(min_market_cap=min_market_cap),
+            mcap_filter,
             PositiveEarningsFilter(),
-        ])
+            MinCapitalEmployedFilter(min_capital=min_capital_employed),
+        ]
+        return cls(filters)
 
     @property
     def name(self) -> str:
