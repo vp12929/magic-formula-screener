@@ -97,3 +97,21 @@ def test_portfolio_rebalance():
     assert "STOCK_C" in port.positions
     assert port.positions["STOCK_C"].shares == 50.0
     assert pytest.approx(port.total_equity, 0.01) == 10_000.0
+
+
+def test_portfolio_dividends():
+    port = Portfolio(initial_capital=10_000.0)
+    # Buy 100 shares of AAPL at $50 (Cost: $5,000, fee: $10). Remaining cash = $4,990
+    port.buy("AAPL", shares=100.0, price=50.0, date="2025-01-01", fee=10.0)
+
+    # AAPL pays $1.00 dividend per share
+    div_rec = port.credit_dividend("AAPL", amount_per_share=1.00, date="2025-03-15")
+    assert div_rec is not None
+    assert div_rec.total_payout == 100.0
+    assert port.cash == 4_990.0 + 100.0  # 5,090.0
+    assert port.total_dividends_collected == 100.0
+
+    # Total net benefit: Capital gains = 0 (price still 50), dividends = 100, fee = 10 => Net benefit = 90
+    assert port.total_fees_paid == 10.0
+    assert pytest.approx(port.total_net_benefit, 0.01) == 90.0
+    assert pytest.approx(port.capital_gains_profit, 0.01) == 0.0

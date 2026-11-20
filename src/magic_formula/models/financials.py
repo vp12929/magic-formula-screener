@@ -24,6 +24,7 @@ class FinancialStatement:
     market_cap: float               # Total equity market value
     net_income: float               # Bottom-line profit
     ebitda: Optional[float] = None  # EBIT + Depreciation & Amortization
+    dividend_yield: Optional[float] = None  # Annual dividend yield as a decimal (e.g. 0.025 = 2.5%)
     
     # Balance Sheet figures for Greenblatt ROC calculation
     current_assets: float = 0.0

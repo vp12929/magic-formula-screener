@@ -58,6 +58,7 @@ class Position:
         self.entry_price: float = float(price)      # Weighted average cost basis per share
         self.entry_date: str = date
         self.current_price: float = float(price)
+        self.dividends_collected: float = 0.0
 
     # -------------------------------------------------------------
     # Computed Properties (Encapsulation)
@@ -74,8 +75,13 @@ class Position:
 
     @property
     def unrealized_pnl(self) -> float:
-        """Profit or loss in dollar terms."""
+        """Capital gains profit or loss in dollar terms (excluding dividends)."""
         return self.market_value - self.cost_basis
+
+    @property
+    def total_pnl(self) -> float:
+        """Total net benefit for this position: Capital Gains + Dividends Collected."""
+        return self.unrealized_pnl + self.dividends_collected
 
     @property
     def unrealized_pnl_pct(self) -> float:
@@ -87,6 +93,16 @@ class Position:
     # -------------------------------------------------------------
     # State Modification Methods (Defensive Invariants)
     # -------------------------------------------------------------
+    def credit_dividend(self, amount_per_share: float) -> float:
+        """
+        Credits a cash dividend payout for this position based on currently held shares.
+        Returns the total dollar cash payout.
+        """
+        if amount_per_share < 0:
+            raise ValueError(f"Dividend per share cannot be negative: {amount_per_share}")
+        payout = self.shares * float(amount_per_share)
+        self.dividends_collected += payout
+        return payout
     def update_price(self, new_price: float) -> None:
         """Updates the current mark-to-market price."""
         if new_price < 0:

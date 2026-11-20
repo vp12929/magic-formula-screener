@@ -17,6 +17,18 @@ from magic_formula.backtest.position import Position, TradeAction, TradeRecord
 
 
 @dataclass(frozen=True)
+class DividendRecord:
+    """
+    Immutable value object representing a cash dividend distribution received.
+    """
+    date: str
+    ticker: str
+    shares: float
+    dividend_per_share: float
+    total_payout: float
+
+
+@dataclass(frozen=True)
 class PortfolioSnapshot:
     """
     Point-in-time snapshot of the portfolio's total state.
@@ -42,7 +54,9 @@ class Portfolio:
         self.cash: float = float(initial_capital)
         self.positions: Dict[str, Position] = {}
         self.trade_history: List[TradeRecord] = []
+        self.dividend_history: List[DividendRecord] = []
         self.snapshots: List[PortfolioSnapshot] = []
+        self.total_fees_paid: float = 0.0
 
     # -------------------------------------------------------------
     # Valuation Properties
@@ -66,6 +80,26 @@ class Portfolio:
     def cumulative_return_pct(self) -> float:
         """Total return percentage since inception (e.g. 0.25 = +25%)."""
         return (self.total_equity - self.initial_capital) / self.initial_capital
+
+    @property
+    def total_dividends_collected(self) -> float:
+        """Total cash dividends collected across all held stocks."""
+        return sum(d.total_payout for d in self.dividend_history)
+
+    @property
+    def total_net_benefit(self) -> float:
+        """
+        Total Net Benefit = Ending Equity - Initial Capital
+        Mathematically equals: Capital Gains + Dividends - Fees.
+        """
+        return self.total_equity - self.initial_capital
+
+    @property
+    def capital_gains_profit(self) -> float:
+        """
+        Pure stock price appreciation profit = Total Net Benefit - Dividends + Fees.
+        """
+        return self.total_net_benefit - self.total_dividends_collected + self.total_fees_paid
 
     # -------------------------------------------------------------
     # Order Execution
@@ -91,6 +125,7 @@ class Portfolio:
             )
 
         self.cash -= total_cost
+        self.total_fees_paid += fee
 
         if symbol in self.positions:
             self.positions[symbol].add_shares(shares, price)
@@ -132,6 +167,7 @@ class Portfolio:
         gross_proceeds = shares * price
         net_proceeds = gross_proceeds - fee
         self.cash += net_proceeds
+        self.total_fees_paid += fee
 
         if remaining_shares == 0:
             del self.positions[symbol]
@@ -147,6 +183,34 @@ class Portfolio:
         )
         self.trade_history.append(trade)
         return trade
+
+    def credit_dividend(
+        self,
+        ticker: str,
+        amount_per_share: float,
+        date: str
+    ) -> Optional[DividendRecord]:
+        """
+        Credits a cash dividend payout for a held stock.
+        Adds cash to portfolio balance and creates an immutable DividendRecord.
+        """
+        symbol = ticker.upper().strip()
+        if symbol not in self.positions:
+            return None
+
+        position = self.positions[symbol]
+        total_payout = position.credit_dividend(amount_per_share)
+        self.cash += total_payout
+
+        record = DividendRecord(
+            date=date,
+            ticker=symbol,
+            shares=position.shares,
+            dividend_per_share=float(amount_per_share),
+            total_payout=total_payout,
+        )
+        self.dividend_history.append(record)
+        return record
 
     def sell_all(self, ticker: str, price: float, date: str, fee: float = 0.0) -> Optional[TradeRecord]:
         """Liquidates the entire position in a given ticker."""

@@ -1,20 +1,18 @@
 """
 engine.py
 ---------
-Defines BacktestEngine and BacktestResult classes.
+Defines BacktestEngine and BacktestResult classes with Cash Dividend Tracking.
 
 OOP Concepts:
-- Facade Pattern: BacktestEngine acts as a high-level coordinator that ties together
-  the Screener, Data Providers, Portfolio, and PerformanceAnalyzer.
-- Dependency Injection: The engine receives its Screener and Analyzer rather than hardcoding them,
-  making the simulation engine fully swappable between live and mock environments.
-- Separation of Execution vs. Data: The engine accepts external price histories or generates
-  deterministic mock curves for fast, reproducible testing.
+- Facade Pattern: Coordinates Screener, Data Providers, Portfolio, and PerformanceAnalyzer.
+- Event-driven Dividend Accounting: Automatically detects ex-dividend dates from price actions,
+  credits cash payouts to the Portfolio, and includes total dividend income in final net benefits.
+- Separation of Concerns: Keeps price downloading, portfolio accounting, and metric analysis isolated.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 
@@ -40,6 +38,10 @@ class BacktestResult:
         print("=" * 80)
         print(self.metrics.summary())
         print("=" * 80)
+        if self.portfolio.dividend_history:
+            total_divs = len(self.portfolio.dividend_history)
+            div_cash = self.portfolio.total_dividends_collected
+            print(f"Dividends: Received {total_divs} payouts totaling ${div_cash:+,.2f} in cash income")
         print(f"Total Rebalance Events: {len(self.rebalance_dates)}")
         for d in self.rebalance_dates:
             stocks = self.holdings_by_period.get(d, [])
@@ -50,7 +52,8 @@ class BacktestResult:
 
 class BacktestEngine:
     """
-    Simulates historical trading of Magic Formula portfolios over time.
+    Simulates historical trading of Magic Formula portfolios over time,
+    accounting for stock price changes, trading commissions, and cash dividend income.
     """
 
     def __init__(
@@ -75,6 +78,7 @@ class BacktestEngine:
         rebalance_months: int = 12,
         benchmark_ticker: str = "SPY",
         price_history_df: Optional[pd.DataFrame] = None,
+        dividend_history_df: Optional[pd.DataFrame] = None,
     ) -> BacktestResult:
         """
         Executes the historical backtest simulation.
@@ -85,11 +89,12 @@ class BacktestEngine:
         :param top_n: Number of stocks to hold in the Magic Formula basket.
         :param rebalance_months: How often to re-screen and rebalance (default 12 months).
         :param benchmark_ticker: Benchmark symbol (default SPY).
-        :param price_history_df: Optional pre-loaded DataFrame of adjusted close prices.
+        :param price_history_df: Optional pre-loaded DataFrame of closing prices.
+        :param dividend_history_df: Optional pre-loaded DataFrame of cash dividend amounts per share.
         """
-        # 1. Fetch or generate historical price matrix
+        # 1. Fetch or generate historical price and dividend matrices
         if price_history_df is None:
-            price_history_df = self._fetch_price_history(
+            price_history_df, dividend_history_df = self._fetch_price_and_dividend_history(
                 tickers=tickers,
                 benchmark=benchmark_ticker,
                 start_date=start_date,
@@ -124,10 +129,20 @@ class BacktestEngine:
         for dt_idx, date_str in enumerate(available_dates):
             current_prices = price_history_df.iloc[dt_idx].to_dict()
 
-            # Check if today is a Rebalancing Day
+            # --- A. CREDIT CASH DIVIDENDS ---
+            if dividend_history_df is not None and dt_idx < len(dividend_history_df):
+                div_series = dividend_history_df.iloc[dt_idx].to_dict()
+                for held_sym in list(portfolio.positions.keys()):
+                    div_amount = float(div_series.get(held_sym, 0.0) or 0.0)
+                    if div_amount > 0:
+                        portfolio.credit_dividend(
+                            ticker=held_sym,
+                            amount_per_share=div_amount,
+                            date=date_str,
+                        )
+
+            # --- B. EXECUTE REBALANCING ---
             if date_str in rebalance_dates or dt_idx == 0:
-                # Run the screener to get current top picks
-                # Only screen stocks that actually have valid price data on this date
                 valid_tickers = [
                     t for t in tickers
                     if t in current_prices and not np.isnan(current_prices[t]) and current_prices[t] > 0
@@ -137,11 +152,9 @@ class BacktestEngine:
 
                 if current_target_tickers:
                     holdings_by_period[date_str] = list(current_target_tickers)
-                    # Equal weighting across chosen stocks
                     equal_weight = 1.0 / len(current_target_tickers)
                     target_weights = {t: equal_weight for t in current_target_tickers}
 
-                    # Execute portfolio rebalancing
                     portfolio.rebalance(
                         target_weights=target_weights,
                         current_prices=current_prices,
@@ -149,10 +162,10 @@ class BacktestEngine:
                         fee_per_trade=self.fee_per_trade,
                     )
 
-            # Mark portfolio to market
+            # --- C. RECORD MARK-TO-MARKET SNAPSHOT ---
             portfolio.take_snapshot(date=date_str, current_prices=current_prices)
 
-            # Record benchmark snapshot
+            # --- D. RECORD BENCHMARK SNAPSHOT ---
             if has_benchmark:
                 bm_price_today = float(current_prices.get(benchmark_ticker, bm_start_price))
                 bm_equity = self.initial_capital * (bm_price_today / bm_start_price)
@@ -194,7 +207,6 @@ class BacktestEngine:
 
         for d_str in available_dates[1:]:
             curr_dt = datetime.strptime(d_str, "%Y-%m-%d")
-            # Calculate months elapsed
             months_diff = (curr_dt.year - last_dt.year) * 12 + (curr_dt.month - last_dt.month)
             if months_diff >= rebalance_months:
                 rebalance_dates.append(d_str)
@@ -202,49 +214,68 @@ class BacktestEngine:
 
         return rebalance_dates
 
-    def _fetch_price_history(
+    def _fetch_price_and_dividend_history(
         self,
         tickers: List[str],
         benchmark: str,
         start_date: str,
         end_date: str,
-    ) -> pd.DataFrame:
-        """Fetches live prices via yfinance or creates synthetic curves for mock mode."""
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Fetches live prices and dividends via yfinance or creates synthetic series for mock mode."""
         all_symbols = list(set(tickers + [benchmark]))
 
-        # If data provider is MockDataProvider, generate a realistic synthetic price series
         if isinstance(self.screener.data_provider, MockDataProvider):
-            return self._generate_synthetic_prices(all_symbols, start_date, end_date)
+            return self._generate_synthetic_prices_and_dividends(all_symbols, start_date, end_date)
 
-        # Otherwise fetch live from Yahoo Finance
+        # Fetch live data including dividend actions
         import yfinance as yf
-        data = yf.download(all_symbols, start=start_date, end=end_date, progress=False, threads=False)
+        data = yf.download(all_symbols, start=start_date, end=end_date, progress=False, threads=False, actions=True)
 
+        # Price DataFrame
         if "Close" in data:
-            df = data["Close"]
+            price_df = data["Close"]
         elif "Adj Close" in data:
-            df = data["Adj Close"]
+            price_df = data["Adj Close"]
         else:
-            df = data
+            price_df = data
 
-        if isinstance(df, pd.Series):
-            df = df.to_frame(name=all_symbols[0])
+        if isinstance(price_df, pd.Series):
+            price_df = price_df.to_frame(name=all_symbols[0])
 
-        return df
+        # Dividend DataFrame
+        if "Dividends" in data:
+            div_df = data["Dividends"]
+            if isinstance(div_df, pd.Series):
+                div_df = div_df.to_frame(name=all_symbols[0])
+        else:
+            div_df = pd.DataFrame(0.0, index=price_df.index, columns=price_df.columns)
 
-    def _generate_synthetic_prices(self, tickers: List[str], start_date: str, end_date: str) -> pd.DataFrame:
-        """Generates realistic daily price series for offline testing."""
+        return price_df, div_df
+
+    def _generate_synthetic_prices_and_dividends(
+        self,
+        tickers: List[str],
+        start_date: str,
+        end_date: str,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Generates realistic daily price series and quarterly dividend distributions for offline testing."""
         dates = pd.date_range(start=start_date, end=end_date, freq="B")  # Business days
-        np.random.seed(42)  # Deterministic test seed
+        np.random.seed(42)
 
-        data = {}
+        price_data = {}
+        div_data = {ticker: np.zeros(len(dates)) for ticker in tickers}
+
         for ticker in tickers:
-            # Random walk with slight upward drift (+10% annual mean, 18% vol)
             daily_drift = 0.10 / 252
             daily_vol = 0.18 / np.sqrt(252)
             returns = np.random.normal(daily_drift, daily_vol, len(dates))
             price_curve = 100.0 * np.exp(np.cumsum(returns))
-            data[ticker] = price_curve
+            price_data[ticker] = price_curve
 
-        df = pd.DataFrame(data, index=dates)
-        return df
+            # Generate synthetic quarterly cash dividends (~0.6% per quarter = 2.4% yield)
+            for idx in range(60, len(dates), 63):
+                div_data[ticker][idx] = round(price_curve[idx] * 0.006, 2)
+
+        price_df = pd.DataFrame(price_data, index=dates)
+        div_df = pd.DataFrame(div_data, index=dates)
+        return price_df, div_df

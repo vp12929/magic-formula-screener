@@ -74,6 +74,7 @@ class MockDataProvider(BaseDataProvider):
                 market_cap=float(mcap),
                 net_income=float(net_inc),
                 ebitda=float(ebitda),
+                dividend_yield=0.025 if sector not in ["Technology"] else 0.008,
                 current_assets=float(curr_assets),
                 current_liabilities=float(curr_liab),
                 net_fixed_assets=float(fixed_assets),

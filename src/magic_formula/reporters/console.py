@@ -34,6 +34,7 @@ class ConsoleReporter(BaseReporter):
             ey_pct = f"{r.scores.earnings_yield * 100:.1f}%"
             roc_pct = f"{r.scores.return_on_capital * 100:.1f}%"
             pe_str = f"{r.scores.pe_ratio:.1f}" if r.scores.pe_ratio else "N/A"
+            div_str = f"{r.dividend_yield * 100:.1f}%" if r.dividend_yield else "N/A"
 
             table_data.append([
                 r.combined_rank,
@@ -46,11 +47,12 @@ class ConsoleReporter(BaseReporter):
                 roc_pct,
                 r.roc_rank,
                 pe_str,
+                div_str,
             ])
 
         headers = [
             "Comb. Rank", "Ticker", "Company Name", "Sector",
-            "Mkt Cap", "EY (EBIT/EV)", "EY Rank", "ROC (Capital)", "ROC Rank", "P/E"
+            "Mkt Cap", "EY (EBIT/EV)", "EY Rank", "ROC (Capital)", "ROC Rank", "P/E", "Div. Yield"
         ]
 
         # Use "grid" or "simple" for clean, universal cross-platform ASCII rendering

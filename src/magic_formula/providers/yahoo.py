@@ -59,12 +59,17 @@ class YahooFinanceProvider(BaseDataProvider):
             if ebit == 0.0:
                 ebit = float(info.get("operatingCashflow") or net_income or 0.0)
 
+            # Dividend Yield
+            div_yield_raw = info.get("dividendYield")
+            dividend_yield = float(div_yield_raw) if div_yield_raw is not None else None
+
             fin = FinancialStatement(
                 ebit=ebit,
                 enterprise_value=enterprise_value,
                 market_cap=market_cap,
                 net_income=net_income,
                 ebitda=ebitda if ebitda != 0.0 else None,
+                dividend_yield=dividend_yield,
                 current_assets=curr_assets,
                 current_liabilities=curr_liab,
                 net_fixed_assets=net_ppe,

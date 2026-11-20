@@ -27,6 +27,7 @@ class MetricScores:
     return_on_invested_capital: Optional[float] = None  # ROIC / ROA
     pe_ratio: Optional[float] = None                    # P/E
     ev_to_ebitda: Optional[float] = None                # EV/EBITDA
+    dividend_yield: Optional[float] = None              # Annual dividend yield
 
 
 @dataclass
@@ -54,6 +55,10 @@ class RankedCompany:
     @property
     def market_cap(self) -> float:
         return self.company.market_cap
+
+    @property
+    def dividend_yield(self) -> Optional[float]:
+        return self.scores.dividend_yield
 
     def __lt__(self, other: "RankedCompany") -> bool:
         """

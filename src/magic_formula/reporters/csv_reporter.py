@@ -26,7 +26,7 @@ class CsvReporter(BaseReporter):
             writer = csv.writer(f)
             writer.writerow([
                 "Combined_Rank", "Ticker", "Company_Name", "Sector", "Industry",
-                "Market_Cap", "Earnings_Yield_Pct", "EY_Rank", "Return_On_Capital_Pct", "ROC_Rank", "PE_Ratio"
+                "Market_Cap", "Earnings_Yield_Pct", "EY_Rank", "Return_On_Capital_Pct", "ROC_Rank", "PE_Ratio", "Dividend_Yield_Pct"
             ])
             for r in results:
                 writer.writerow([
@@ -40,7 +40,8 @@ class CsvReporter(BaseReporter):
                     r.ey_rank,
                     round(r.scores.return_on_capital * 100, 2),
                     r.roc_rank,
-                    round(r.scores.pe_ratio, 2) if r.scores.pe_ratio else "N/A"
+                    round(r.scores.pe_ratio, 2) if r.scores.pe_ratio else "N/A",
+                    round(r.dividend_yield * 100, 2) if r.dividend_yield else "N/A"
                 ])
         print(f"Results exported successfully to: {self.output_path.resolve()}")
 

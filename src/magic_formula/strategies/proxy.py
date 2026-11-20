@@ -43,4 +43,5 @@ class ProxyRankingStrategy(BaseRankingStrategy):
             return_on_invested_capital=fin.return_on_assets,
             pe_ratio=fin.pe_ratio,
             ev_to_ebitda=fin.ev_to_ebitda,
+            dividend_yield=fin.dividend_yield,
         )

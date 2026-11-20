@@ -32,6 +32,11 @@ class PerformanceMetrics:
     winning_trades: int
     losing_trades: int
     win_rate_pct: float
+    # Benefit breakdown
+    capital_gains_profit: float = 0.0
+    dividends_collected: float = 0.0
+    total_fees_paid: float = 0.0
+    total_net_benefit: float = 0.0
     # Benchmark stats (e.g. vs SPY)
     benchmark_total_return_pct: Optional[float] = None
     benchmark_cagr: Optional[float] = None
@@ -41,21 +46,26 @@ class PerformanceMetrics:
     def summary(self) -> str:
         """Returns a formatted summary text block."""
         lines = [
-            f"Initial Capital:       ${self.initial_capital:,.2f}",
-            f"Ending Equity:         ${self.ending_equity:,.2f}",
-            f"Total Return:          {self.total_return_pct * 100:+.2f}%",
-            f"CAGR (Annualized):     {self.cagr * 100:+.2f}%",
-            f"Annual Volatility:     {self.annualized_volatility * 100:.2f}%",
-            f"Sharpe Ratio:          {self.sharpe_ratio:.2f}",
-            f"Max Drawdown:          {self.max_drawdown_pct * 100:.2f}%",
-            f"Total Trades:          {self.total_trades} (Win rate: {self.win_rate_pct * 100:.1f}%)",
+            f"Initial Capital:         ${self.initial_capital:,.2f}",
+            f"Ending Equity:           ${self.ending_equity:,.2f}",
+            f"----------------------------------------------------------------",
+            f"  • Capital Gains Profit:  ${self.capital_gains_profit:+,.2f}",
+            f"  • Dividends Collected:   ${self.dividends_collected:+,.2f}",
+            f"  • Trading Fees Paid:     ${self.total_fees_paid:,.2f}",
+            f"  • Total Net Benefit:     ${self.total_net_benefit:+,.2f} ({self.total_return_pct * 100:+.2f}%)",
+            f"----------------------------------------------------------------",
+            f"CAGR (Annualized):       {self.cagr * 100:+.2f}%",
+            f"Annual Volatility:       {self.annualized_volatility * 100:.2f}%",
+            f"Sharpe Ratio:            {self.sharpe_ratio:.2f}",
+            f"Max Drawdown:            {self.max_drawdown_pct * 100:.2f}%",
+            f"Total Trades:            {self.total_trades} (Win rate: {self.win_rate_pct * 100:.1f}%)",
         ]
         if self.benchmark_total_return_pct is not None:
             lines.extend([
-                f"Benchmark Return:      {self.benchmark_total_return_pct * 100:+.2f}%",
-                f"Benchmark CAGR:        {self.benchmark_cagr * 100:+.2f}%",
-                f"Beta vs Benchmark:     {self.beta:.2f}" if self.beta is not None else "Beta: N/A",
-                f"Alpha (Annualized):    {self.alpha * 100:+.2f}%" if self.alpha is not None else "Alpha: N/A",
+                f"Benchmark Return:        {self.benchmark_total_return_pct * 100:+.2f}%",
+                f"Benchmark CAGR:          {self.benchmark_cagr * 100:+.2f}%",
+                f"Beta vs Benchmark:       {self.beta:.2f}" if self.beta is not None else "Beta: N/A",
+                f"Alpha (Annualized):      {self.alpha * 100:+.2f}%" if self.alpha is not None else "Alpha: N/A",
             ])
         return "\n".join(lines)
 
@@ -137,6 +147,10 @@ class PerformanceAnalyzer:
             winning_trades=win_count,
             losing_trades=loss_count,
             win_rate_pct=win_rate,
+            capital_gains_profit=portfolio.capital_gains_profit,
+            dividends_collected=portfolio.total_dividends_collected,
+            total_fees_paid=portfolio.total_fees_paid,
+            total_net_benefit=portfolio.total_net_benefit,
             benchmark_total_return_pct=bm_total_ret,
             benchmark_cagr=bm_cagr,
             alpha=alpha,
